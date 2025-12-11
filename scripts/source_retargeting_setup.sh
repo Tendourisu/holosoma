@@ -5,4 +5,5 @@ elif [ -n "${ZSH_VERSION}" ]; then
     SCRIPT_DIR=$( cd -- "$( dirname -- "${(%):-%x}" )" &> /dev/null && pwd )
 fi
 source ${SCRIPT_DIR}/source_common.sh
-source ${CONDA_ROOT}/bin/activate hsretargeting
+echo "$CONDA_ROOT"
+source /home/zzhang/.holosoma_deps/miniconda3/bin/activate hsretargeting

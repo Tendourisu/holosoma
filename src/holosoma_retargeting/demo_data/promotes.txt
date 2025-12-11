@@ -1,0 +1,5 @@
+python examples/robot_retarget.py --data_path demo_data/OMOMO_new --task-type robot_only --task-name sub3_largebox_003 --data_format smplh --retargeter.debug --retargeter.visualize
+
+python examples/parallel_robot_retarget.py --data-dir demo_data/OMOMO_new --task-type robot_only --data_format smplh --save_dir demo_results_parallel/g1/robot_only/omomo --task-config.object-name ground
+
+python examples/robot_retarget.py --data_path demo_data/g1_pkl --task-type robot_only --task-name ACCAD_Female1Running_c3d_C20_-__run_to_jump_to_walk_stageii --data_format g1_pkl --save_dir demo_results/g1/robot_only/g1_pkl --retargeter.debug --retargeter.visualize
