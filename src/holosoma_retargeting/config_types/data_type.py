@@ -142,6 +142,42 @@ MOCAP_DEMO_JOINTS = [
     "RightFootMod",
 ]
 
+G1_PKL_DEMO_JOINTS = [
+    "pelvis_contour_link",
+    "waist_yaw_link",
+    "waist_roll_link",
+    "torso_link",
+    "head_link",
+    "left_hip_pitch_link",
+    "left_hip_roll_link",
+    "left_hip_yaw_link",
+    "left_knee_link",
+    "left_ankle_pitch_link",
+    "left_ankle_roll_link",
+    "left_toe_link",
+    "right_hip_pitch_link",
+    "right_hip_roll_link",
+    "right_hip_yaw_link",
+    "right_knee_link",
+    "right_ankle_pitch_link",
+    "right_ankle_roll_link",
+    "right_toe_link",
+    "left_shoulder_pitch_link",
+    "left_shoulder_roll_link",
+    "left_shoulder_yaw_link",
+    "left_elbow_link",
+    "left_wrist_roll_link",
+    "left_wrist_pitch_link",
+    "left_wrist_yaw_link",
+    "right_shoulder_pitch_link",
+    "right_shoulder_roll_link",
+    "right_shoulder_yaw_link",
+    "right_elbow_link",
+    "right_wrist_roll_link",
+    "right_wrist_pitch_link",
+    "right_wrist_yaw_link",
+]
+
 # Joint mappings - organized by (data_format, robot_type)
 JOINTS_MAPPINGS = {
     ("lafan", "g1"): {
@@ -246,6 +282,7 @@ JOINTS_MAPPINGS = {
         "LeftFoot": "Ankle_Cross_Left",
         "RightFoot": "Ankle_Cross_Right",
     },
+    ("g1_pkl", "g1"): {name: name for name in G1_PKL_DEMO_JOINTS},
 }
 
 # Data format specific constants
@@ -253,6 +290,7 @@ TOE_NAMES_BY_FORMAT = {
     "lafan": ["LeftToeBase", "RightToeBase"],
     "smplh": ["L_Toe", "R_Toe"],
     "mocap": ["LeftToeBase", "RightToeBase"],
+    "g1_pkl": ["left_toe_link", "right_toe_link"],
 }
 
 
@@ -272,6 +310,9 @@ DATA_FORMAT_CONSTANTS: dict[str, FormatConstants] = {
     "mocap": {
         "default_human_height": 1.78,
     },
+    "g1_pkl": {
+        "default_scale_factor": 1.0,
+    },
 }
 
 
@@ -282,7 +323,7 @@ class MotionDataConfig:
     Uses properties instead of __post_init__ - much simpler!
     """
 
-    data_format: Literal["lafan", "smplh", "mocap"] = "smplh"
+    data_format: Literal["lafan", "smplh", "mocap", "g1_pkl"] = "smplh"
     robot_type: Literal["g1", "t1"] = "g1"
 
     # Optional overrides - if None, will use defaults from data_format
@@ -299,6 +340,8 @@ class MotionDataConfig:
             return LAFAN_DEMO_JOINTS
         if self.data_format == "smplh":
             return SMPLH_DEMO_JOINTS
+        if self.data_format == "g1_pkl":
+            return G1_PKL_DEMO_JOINTS
         # mocap
         return MOCAP_DEMO_JOINTS
 
@@ -347,5 +390,6 @@ __all__ = [
     "LAFAN_DEMO_JOINTS",
     "MOCAP_DEMO_JOINTS",
     "SMPLH_DEMO_JOINTS",
+    "G1_PKL_DEMO_JOINTS",
     "MotionDataConfig",
 ]

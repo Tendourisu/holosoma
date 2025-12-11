@@ -39,6 +39,7 @@ from holosoma_retargeting.src.utils import (  # noqa: E402
     extract_foot_sticking_sequence_velocity,
     extract_object_first_moving_frame,
     load_intermimic_data,
+    load_g1_pkl_motion,
     load_object_data,
     preprocess_motion_data,
     transform_from_human_to_world,
@@ -73,7 +74,7 @@ _AUGMENTATION_TRANSLATION = np.array([0.2, 0.0, 0.0])
 
 # Type aliases
 TaskType = Literal["robot_only", "object_interaction", "climbing"]
-DataFormat = Literal["lafan", "smplh", "mocap"]
+DataFormat = Literal["lafan", "smplh", "mocap", "g1_pkl"]
 
 
 # ----------------------------- Helper Functions -----------------------------
@@ -144,8 +145,8 @@ def validate_config(cfg: RetargetingConfig) -> None:
         raise ValueError("Climbing task requires 'mocap' data format")
     if cfg.task_type == "object_interaction" and cfg.data_format not in (None, "smplh"):
         raise ValueError("Object interaction requires 'smplh' data format")
-    if cfg.task_type == "robot_only" and cfg.data_format not in (None, "lafan", "smplh", "mocap"):
-        raise ValueError("Robot-only task requires 'lafan' or 'smplh' or 'mocap' data format")
+    if cfg.task_type == "robot_only" and cfg.data_format not in (None, "lafan", "smplh", "mocap", "g1_pkl"):
+        raise ValueError("Robot-only task requires 'lafan', 'smplh', 'mocap', or 'g1_pkl' data format")
 
 
 def create_ground_points(x_range: tuple[float, float], y_range: tuple[float, float], size: int) -> np.ndarray:
@@ -223,6 +224,50 @@ def load_motion_data(
 
             default_human_height = motion_data_config.default_human_height or 1.78
             smpl_scale = constants.ROBOT_HEIGHT / default_human_height
+        elif data_format == "g1_pkl":
+            pkl_path = data_path / f"{task_name}.pkl"
+            if not pkl_path.exists():
+                raise FileNotFoundError(f"G1 PKL data file not found: {pkl_path}")
+
+            g1_data = load_g1_pkl_motion(str(pkl_path))
+            human_joints = g1_data["world_body_pos"]
+            smpl_scale = motion_data_config.default_scale_factor or 1.0
+
+            # Override constants with names from the PKL so retargeter uses matching indices
+            def _map_g1_pkl_link_to_robot(link_name: str) -> str:
+                """Map PKL link names to URDF body names when they differ."""
+                toe_map = {
+                    "left_toe_link": "left_ankle_roll_sphere_5_link",
+                    "right_toe_link": "right_ankle_roll_sphere_5_link",
+                }
+                head_map = {
+                    "head_link": "torso_link",  # URDF/XML omits separate head body
+                    "head_mocap": "torso_link",
+                }
+                misc_map = {
+                    "imu_in_torso": "torso_link",
+                    "left_rubber_hand": "left_rubber_hand_link",
+                    "right_rubber_hand": "right_rubber_hand_link",
+                }
+                if link_name in toe_map:
+                    return toe_map[link_name]
+                if link_name in head_map:
+                    return head_map[link_name]
+                if link_name in misc_map:
+                    return misc_map[link_name]
+                return link_name
+
+            constants.DEMO_JOINTS = g1_data["link_body_list"]
+            constants.JOINTS_MAPPING = {name: _map_g1_pkl_link_to_robot(name) for name in g1_data["link_body_list"]}
+            toe_candidates = [name for name in g1_data["link_body_list"] if "toe" in name]
+            constants.TOE_NAMES = toe_candidates[:2] if toe_candidates else ["left_toe_link", "right_toe_link"]
+            if g1_data["dof_pos"].shape[1] != constants.ROBOT_DOF:
+                raise ValueError(
+                    f"G1 PKL dof_pos has {g1_data['dof_pos'].shape[1]} dof, expected {constants.ROBOT_DOF}"
+                )
+            constants.INIT_ROOT_POS = g1_data["root_pos"][0]
+            constants.INIT_ROOT_ROT = g1_data["root_rot"][0]
+            constants.INIT_DOF_POS = g1_data["dof_pos"][0]
 
         # Create dummy object poses for robot_only
         num_frames = human_joints.shape[0]
@@ -376,7 +421,12 @@ def _compute_q_init_base(
             q_init_base = np.concatenate(
                 [human_joints[0, spine_joint_idx, :3], human_quat_init, np.zeros(constants.ROBOT_DOF)]
             )
-        else:  # smplh
+        elif data_format == "g1_pkl":
+            base_pos = getattr(constants, "INIT_ROOT_POS", human_joints[0, 0, :3])
+            base_quat = getattr(constants, "INIT_ROOT_ROT", np.array([1.0, 0.0, 0.0, 0.0]))
+            dof_init = getattr(constants, "INIT_DOF_POS", np.zeros(constants.ROBOT_DOF))
+            q_init_base = np.concatenate([base_pos, base_quat, dof_init])
+        else:  # smplh/mocap default
             _, human_quat_init = transform_from_human_to_world(
                 human_joints[0, 0, :], object_poses[0], np.array([0.0, 0.0, 0.0])
             )

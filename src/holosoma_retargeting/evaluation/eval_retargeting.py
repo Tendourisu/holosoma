@@ -36,6 +36,7 @@ from holosoma_retargeting.src.utils import (  # type: ignore[import-not-found]  
     create_scaled_multi_boxes_xml,
     extract_foot_sticking_sequence_velocity,
     load_intermimic_data,
+    load_g1_pkl_motion,
     preprocess_motion_data,
     transform_points_world_to_local,
     transform_y_up_to_z_up,
@@ -589,9 +590,22 @@ class RetargetingEvaluator:
         data_name = task_name.split("_original")[0]
         npy_path = Path(input_data_dir) / f"{data_name}.npy"
         pt_path = Path(input_data_dir) / f"{data_name}.pt"
+        pkl_path = Path(input_data_dir) / f"{data_name}.pkl"
 
         # Determine data format and toe names based on file extension
-        if pt_path.exists():
+        if pkl_path.exists():
+            # G1 PKL data format (already robot-specific)
+            g1_data = load_g1_pkl_motion(str(pkl_path))
+            human_joints = g1_data["world_body_pos"]
+            demo_joints_for_contact = g1_data["link_body_list"]
+            toe_names = [name for name in demo_joints_for_contact if "toe" in name][:2] or [
+                "left_toe_link",
+                "right_toe_link",
+            ]
+            smpl_scale = 1.0
+            dummy = SimpleNamespace(demo_joints=demo_joints_for_contact)
+            human_joints = preprocess_motion_data(human_joints, dummy, toe_names, smpl_scale)
+        elif pt_path.exists():
             # OMOMO (smplh) data format
             toe_names = ["L_Toe", "R_Toe"]
             human_joints, _ = load_intermimic_data(str(pt_path))
@@ -621,7 +635,7 @@ class RetargetingEvaluator:
             human_joints = preprocess_motion_data(human_joints, self, toe_names, smpl_scale)
             demo_joints_for_contact = self.demo_joints
         else:
-            raise FileNotFoundError(f"Neither {npy_path} nor {pt_path} found for task {data_name}")
+            raise FileNotFoundError(f"Neither {npy_path} nor {pt_path} nor {pkl_path} found for task {data_name}")
 
         contact_sequences = extract_foot_sticking_sequence_velocity(
             human_joints,
@@ -731,7 +745,7 @@ class Args:
     data_dir: Path
     data_type: Literal["robot_object", "robot_only", "robot_terrain"] = "robot_object"
     robot: Literal["g1", "t1"] = "g1"
-    data_format: Literal["lafan", "smplh", "mocap"] | None = None
+    data_format: Literal["lafan", "smplh", "mocap", "g1_pkl"] | None = None
     object_name: str | None = None
     max_workers: int = 1
 

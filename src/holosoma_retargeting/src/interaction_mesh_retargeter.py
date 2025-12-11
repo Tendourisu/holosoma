@@ -228,8 +228,8 @@ class InteractionMeshRetargeter:
         # Add grid
         self.server.scene.add_grid(
             "/world/grid",
-            width=8,
-            height=8,
+            width=12,
+            height=12,
             position=(0.0, 0.0, 0.0),
         )
 
@@ -394,7 +394,7 @@ class InteractionMeshRetargeter:
                     w_nominal_tracking=w_nominal_tracking,
                     q_a_nominal=(q_nominal_list[i, self.q_a_indices] if q_nominal_list is not None else None),
                     init_t=i == 0,
-                    n_iter=50 if i == 0 else 10,
+                    n_iter=5 if i == 0 else 5,
                 )
                 if self.debug:
                     robot_link_positions = self._get_robot_link_positions(

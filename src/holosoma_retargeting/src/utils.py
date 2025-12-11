@@ -9,6 +9,7 @@ import pickle
 import re
 from pathlib import Path
 
+import pickle  # type: ignore[import-not-found]
 import numpy as np
 import smplx  # type: ignore[import-not-found]
 import torch
@@ -42,6 +43,54 @@ def calculate_scale_factor(task_name, robot_height):
     sub_name = task_name.split("_")[0]
     human_height = height_dict[sub_name]
     return robot_height / human_height
+
+
+def load_g1_pkl_motion(file_path: str):
+    """
+    Load G1 robot motion saved as a joblib/pickle dict.
+
+    Expected keys:
+        - fps: scalar
+        - root_pos: (T, 3)
+        - root_rot: (T, 4) quaternion (assumed xyzw)
+        - dof_pos: (T, 29)
+        - local_body_pos: (T, J, 3) joint/body positions (root frame)
+        - link_body_list: list of length J with joint/body names
+    """
+    with open(file_path, "rb") as f:
+        data = pickle.load(f)
+    required_keys = ["root_pos", "root_rot", "dof_pos", "local_body_pos", "link_body_list"]
+    missing = [k for k in required_keys if k not in data]
+    if missing:
+        raise KeyError(f"Missing keys in {file_path}: {missing}")
+
+    root_pos = np.asarray(data["root_pos"], dtype=np.float32)
+    root_rot = np.asarray(data["root_rot"], dtype=np.float32)
+    root_rot = root_rot[:, [3, 0, 1, 2]]  # xyzw to wxyz
+    dof_pos = np.asarray(data["dof_pos"], dtype=np.float32)
+    local_body_pos = np.asarray(data["local_body_pos"], dtype=np.float32)
+    link_body_list = list(data["link_body_list"])
+
+    if local_body_pos.shape[1] != len(link_body_list):
+        raise ValueError(
+            f"Mismatch between local_body_pos joints ({local_body_pos.shape[1]}) and link_body_list ({len(link_body_list)})"
+        )
+
+    fps_val = float(data.get("fps", 30.0))
+
+    world_body_pos = np.empty_like(local_body_pos)
+    for i in range(local_body_pos.shape[0]):
+        world_body_pos[i] = transform_points_local_to_world(root_rot[i], root_pos[i], local_body_pos[i])
+
+    return {
+        "fps": fps_val,
+        "root_pos": root_pos,
+        "root_rot": root_rot,
+        "dof_pos": dof_pos,
+        "local_body_pos": local_body_pos,
+        "world_body_pos": world_body_pos,
+        "link_body_list": link_body_list,
+    }
 
 
 def load_object_data(
