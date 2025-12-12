@@ -339,6 +339,16 @@ class InteractionMeshRetargeter:
                 object_quat_demo = object_poses[i, 3:]
                 object_trans_demo = object_poses[i, :3]
 
+                # Translate ground points to follow the last optimized base XY (robot_only task)
+                if self.object_name == "ground":
+                    base_xy = q[:2]
+                    ground_offset = np.array([base_xy[0], base_xy[1], 0.0])
+                    object_points_local_demo_frame = object_points_local_demo + ground_offset
+                    object_points_local_frame = object_points_local + ground_offset
+                else:
+                    object_points_local_demo_frame = object_points_local_demo
+                    object_points_local_frame = object_points_local
+
                 # Get human joint positions and create interaction mesh in object frame
                 human_mapped_joints = human_joint_motions[i, self.smplh_mapped_joint_indices]
 
@@ -350,7 +360,7 @@ class InteractionMeshRetargeter:
                     )
 
                 source_vertices, source_tetrahedra = create_interaction_mesh(
-                    np.vstack([human_mapped_joints_in_object, object_points_local_demo])
+                    np.vstack([human_mapped_joints_in_object, object_points_local_demo_frame])
                 )
                 tetrahedra.append(source_tetrahedra)
 
@@ -359,9 +369,9 @@ class InteractionMeshRetargeter:
                     object_quat = object_poses_augmented[i, 3:]
                     object_trans = object_poses_augmented[i, :3]
                     obj_pts_demo = transform_points_local_to_world(
-                        object_quat_demo, object_trans_demo, object_points_local_demo
+                        object_quat_demo, object_trans_demo, object_points_local_demo_frame
                     )
-                    obj_pts = transform_points_local_to_world(object_quat, object_trans, object_points_local)
+                    obj_pts = transform_points_local_to_world(object_quat, object_trans, object_points_local_frame)
 
                     obj_pts_demo_list.append(obj_pts_demo)
                     obj_pts_list.append(obj_pts)
@@ -389,7 +399,7 @@ class InteractionMeshRetargeter:
                     q_t_last=retargeted_motions[-1],
                     target_laplacian=target_laplacian,
                     adj_list=adj_list,
-                    obj_pts_local=object_points_local,
+                    obj_pts_local=object_points_local_frame,
                     foot_sticking=foot_sticking_sequences[i],
                     w_nominal_tracking=w_nominal_tracking,
                     q_a_nominal=(q_nominal_list[i, self.q_a_indices] if q_nominal_list is not None else None),
